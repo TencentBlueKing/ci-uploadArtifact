@@ -1,0 +1,7 @@
+{
+  "filePath": "*.txt",
+  "isCustomize": "true",
+  "destPath": "upload/",
+  "bkWorkspace": "/Users/huangou/Downloads",
+  "BK_CI_PIPELINE_NAME": "pipelineName1"
+}

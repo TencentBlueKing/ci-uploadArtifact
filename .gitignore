@@ -1,0 +1,13 @@
+.idea/
+.gradle/
+build/
+out/
+target/
+release/
+reports/
+*.iml
+.DS_Store
+
+# test file
+.sdk.json2
+output.json

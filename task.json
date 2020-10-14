@@ -1,0 +1,51 @@
+{
+  "atomCode": "uploadArtifact",
+  "execution": {
+    "packagePath": "uploadArtifact-jar-with-dependencies.jar",
+    "language": "java",
+    "minimumVersion": "1.8",
+    "demands": [],
+    "target": "$bk_java_path -jar uploadArtifact-jar-with-dependencies.jar -Dfile.encoding=utf8"
+  },
+  "input": {
+    "filePath": {
+      "label": "待归档的文件",
+      "default": "",
+      "placeholder": "package.zip",
+      "type": "vuex-input",
+      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，不支持归档目录",
+      "required": true,
+      "disabled": false,
+      "hidden": false,
+      "isSensitive": false
+    },
+    "isCustomize": {
+      "text": "归档至自定义版本仓库",
+      "default": false,
+      "type": "atom-checkbox",
+      "desc": " 流水线仓库：以流水线名称+构建号自动生成的目录结构\n自定义版本仓库：可自定义版本仓库目录结构，不存在将自动创建",
+      "required": false,
+      "disabled": false,
+      "hidden": false,
+      "isSensitive": false
+    },
+    "destPath": {
+      "default": "upload/",
+      "type": "vuex-input",
+      "required": false,
+      "disabled": false,
+      "hidden": false,
+      "isSensitive": false,
+      "rely": {
+        "operation": "AND",
+        "expression": [
+          {
+            "key": "isCustomize",
+            "value": true
+          }
+        ]
+      }
+    }
+  }
+}
+
