@@ -11,3 +11,4 @@ reports/
 # test file
 .sdk.json2
 output.json
+.codecc

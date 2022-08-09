@@ -1,8 +1,9 @@
 package com.tencent.bk.devops.atom.task
 
 import com.tencent.bk.devops.atom.api.SdkEnv
-import okhttp3.Headers
-import okhttp3.MediaType
+import okhttp3.Headers.Companion.toHeaders
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -31,16 +32,16 @@ class AtomHttpClient {
 
     fun doRequestWithContent(request: Request): String {
         val response = okHttpClient.newCall(request).execute()
-        val responseContent = response.body()!!.string()
+        val responseContent = response.body!!.string()
         if (!response.isSuccessful) {
-            logger.error("http request failed, code: ${response.code()}, responseContent: $responseContent")
+            logger.error("http request failed, code: ${response.code}, responseContent: $responseContent")
         }
         return responseContent
     }
 
     fun doRequestWithCodeAndContent(request: Request): Pair<Int, String> {
         val response = okHttpClient.newCall(request).execute()
-        return Pair(response.code(), response.body()!!.string())
+        return Pair(response.code, response.body!!.string())
     }
 
     fun doLongRequest(request: Request): Response {
@@ -53,7 +54,7 @@ class AtomHttpClient {
 
     fun buildAtomGet(path: String, headers: MutableMap<String, String>): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(headers))).get().build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(headers).toHeaders()).get().build()
     }
 
     fun buildAtomPost(path: String): Request {
@@ -61,18 +62,18 @@ class AtomHttpClient {
     }
 
     fun buildAtomPost(path: String, headers: MutableMap<String, String> = mutableMapOf()): Request {
-        val requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "")
+        val requestBody = RequestBody.create("application/json; charset=utf-8".toMediaType(), "")
         return buildAtomPost(path, requestBody, headers)
     }
 
     fun buildAtomPost(path: String, requestBody: RequestBody): Request? {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(mutableMapOf()))).post(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(mutableMapOf()).toHeaders()).post(requestBody).build()
     }
 
     fun buildAtomPost(path: String, requestBody: RequestBody, headers: MutableMap<String, String>): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(headers))).post(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(headers).toHeaders()).post(requestBody).build()
     }
 
     fun buildAtomPut(path: String): Request? {
@@ -80,38 +81,38 @@ class AtomHttpClient {
     }
 
     fun buildAtomPut(path: String, headers: MutableMap<String, String>): Request {
-        val requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), "")
+        val requestBody = RequestBody.create("application/json; charset=utf-8".toMediaTypeOrNull(), "")
         return buildAtomPut(path, requestBody, headers)
     }
 
     fun buildAtomPut(path: String, requestBody: RequestBody): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(mutableMapOf()))).put(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(mutableMapOf()).toHeaders()).put(requestBody).build()
     }
 
     fun buildAtomPut(path: String, requestBody: RequestBody, headers: MutableMap<String, String>): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(headers))).put(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(headers).toHeaders()).put(requestBody).build()
     }
 
     fun buildAtomDelete(path: String): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(mutableMapOf()))).delete().build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(mutableMapOf()).toHeaders()).delete().build()
     }
 
     fun buildAtomDelete(path: String, headers: MutableMap<String, String>): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(headers))).delete().build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(headers).toHeaders()).delete().build()
     }
 
     fun buildAtomDelete(path: String, requestBody: RequestBody): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(mutableMapOf()))).delete(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(mutableMapOf()).toHeaders()).delete(requestBody).build()
     }
 
     fun buildAtomDelete(path: String, requestBody: RequestBody, headers: MutableMap<String, String>): Request {
         val url = buildAtomUrl(path)
-        return Request.Builder().url(url).headers(Headers.of(getAllAtomHeaders(headers))).delete(requestBody).build()
+        return Request.Builder().url(url).headers(getAllAtomHeaders(headers).toHeaders()).delete(requestBody).build()
     }
 
     private fun buildAtomUrl(path: String): String {
