@@ -5,12 +5,15 @@ import com.tencent.bk.devops.atom.api.BaseApi
 import com.tencent.bk.devops.atom.exception.AtomException
 import com.tencent.bk.devops.atom.pojo.AtomBaseParam
 import net.dongliu.apk.parser.ApkFile
-import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URLEncoder
+import java.util.Base64
+import java.util.Locale
 
 class ArchiveApi : BaseApi() {
     private val atomHttpClient = AtomHttpClient()
@@ -19,8 +22,8 @@ class ArchiveApi : BaseApi() {
         val bkrepoPath = (destPath.removeSuffix("/") + "/" + file.name).removePrefix("/").removePrefix("./")
         val request = atomHttpClient.buildAtomPut(
             "/bkrepo/api/build/generic/${atomBaseParam.projectName}/custom/$bkrepoPath",
-            RequestBody.create(MediaType.parse("application/octet-stream"), file),
-            getBkRepoUploadHeader(file, atomBaseParam)
+            file.asRequestBody("application/octet-stream".toMediaType()),
+            getUploadHeader(file, atomBaseParam)
         )
         uploadFile(request)
     }
@@ -28,8 +31,8 @@ class ArchiveApi : BaseApi() {
     fun uploadBkRepoPipelineFile(file: File, atomBaseParam: AtomBaseParam) {
         val request = buildPut(
             "/bkrepo/api/build/generic/${atomBaseParam.projectName}/pipeline/${atomBaseParam.pipelineId}/${atomBaseParam.pipelineBuildId}/${file.name}",
-            RequestBody.create(MediaType.parse("application/octet-stream"), file),
-            getBkRepoUploadHeader(file, atomBaseParam)
+            file.asRequestBody("application/octet-stream".toMediaType()),
+            getUploadHeader(file, atomBaseParam)
         )
         uploadFile(request)
     }
@@ -38,7 +41,7 @@ class ArchiveApi : BaseApi() {
         try {
             val response = atomHttpClient.doRequest(request)
             if (!response.isSuccessful) {
-                logger.error("upload file failed, code: ${response.code()}, responseContent: ${response.body()!!.string()}")
+                logger.error("upload file failed, code: ${response.code}, responseContent: ${response.body!!.string()}")
                 throw AtomException("upload file failed")
             }
         } catch (e: Exception) {
@@ -53,39 +56,79 @@ class ArchiveApi : BaseApi() {
         }
     }
 
-    private fun getBkRepoUploadHeader(file: File, atomParam: AtomBaseParam): HashMap<String, String> {
+    private fun getUploadHeader(
+        file: File,
+        atomParam: AtomBaseParam
+    ): HashMap<String, String> {
         val header = Maps.newHashMap<String, String>()
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_PROJECT_ID] = atomParam.projectName
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_PIPELINE_ID] = atomParam.pipelineId
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_BUILD_ID] = atomParam.pipelineBuildId
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_USER_ID] = atomParam.pipelineStartUserName
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_BUILD_NO] = atomParam.pipelineBuildNum
-        header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_SOURCE] = "pipeline"
         header[BKREPO_UID] = atomParam.pipelineStartUserName
         header[BKREPO_OVERRIDE] = "true"
-        setBkRepoAppProps(file, header)
+
+        val metadata = mutableMapOf<String, String>()
+        metadata[ARCHIVE_PROPS_PROJECT_ID] = atomParam.projectName
+        metadata[ARCHIVE_PROPS_PIPELINE_ID] = atomParam.pipelineId
+        metadata[ARCHIVE_PROPS_BUILD_ID] = atomParam.pipelineBuildId
+        metadata[ARCHIVE_PROPS_USER_ID] = atomParam.pipelineStartUserName
+        metadata[ARCHIVE_PROPS_BUILD_NO] = atomParam.pipelineBuildNum
+        metadata[ARCHIVE_PROPS_TASK_ID] = atomParam.pipelineTaskId
+        metadata[ARCHIVE_PROPS_SOURCE] = "pipeline"
+        metadata.putAll(getAppMetadata(file))
+        header[BKREPO_METADATA] = Base64.getEncoder().encodeToString(buildMetadataHeader(metadata).toByteArray())
         return header
     }
 
-    private fun setBkRepoAppProps(file: File, header: HashMap<String, String>) {
+    private fun getAppMetadata(file: File): Map<String, String> {
         try {
-            if (file.name.endsWith(".ipa")) {
-                val map = IosUtils.getIpaInfoMap(file)
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_VERSION] = urLEncode(map["bundleVersion"])
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_BUNDLE_IDENTIFIER] = urLEncode(map["bundleIdentifier"])
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_APP_TITLE] = urLEncode(map["appTitle"])
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_IMAGE] = urLEncode(map["image"])
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_FULL_IMAGE] = urLEncode(map["fullImage"])
-            }
-            if (file.name.endsWith(".apk")) {
-                val apkFile = ApkFile(file)
-                val meta = apkFile.apkMeta
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_VERSION] = urLEncode(meta.versionName)
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_APP_TITLE] = urLEncode(meta.name)
-                header[BKREPO_METADATA_PREFIX + ARCHIVE_PROPS_APP_BUNDLE_IDENTIFIER] = urLEncode(meta.packageName)
+            return when {
+                file.name.endsWith(".ipa") -> {
+                    val map = IosUtils.getIpaInfoMap(file)
+                    val result = mutableMapOf(
+                        ARCHIVE_PROPS_APP_VERSION to (map["bundleVersion"] ?: ""),
+                        ARCHIVE_PROPS_APP_BUNDLE_IDENTIFIER to (map["bundleIdentifier"] ?: ""),
+                        ARCHIVE_PROPS_APP_APP_TITLE to (map["appTitle"] ?: ""),
+                        ARCHIVE_PROPS_APP_IMAGE to (map["image"] ?: ""),
+                        ARCHIVE_PROPS_APP_FULL_IMAGE to (map["fullImage"] ?: ""),
+                        ARCHIVE_PROPS_APP_SCHEME to (map["scheme"] ?: ""),
+                        ARCHIVA_PROPS_APP_NAME to (map["appName"] ?: "")
+                    )
+                    result
+                }
+                file.name.endsWith(".apk") -> {
+                    val apkFile = ApkFile(file)
+                    apkFile.preferredLocale = Locale.SIMPLIFIED_CHINESE
+                    val meta = apkFile.apkMeta
+                    val result = mutableMapOf(
+                        ARCHIVE_PROPS_APP_VERSION to meta.versionName,
+                        ARCHIVE_PROPS_APP_APP_TITLE to meta.name,
+                        ARCHIVE_PROPS_APP_BUNDLE_IDENTIFIER to meta.packageName,
+                        ARCHIVA_PROPS_APP_NAME to (meta.label ?: "")
+                    )
+                    result
+                }
+                else -> {
+                    mapOf()
+                }
             }
         } catch (e: Exception) {
             logger.warn("get metadata from file(${file.absolutePath}) failed", e)
+            return mapOf()
+        }
+    }
+
+    private fun buildMetadataHeader(metadata: Map<String, String>): String {
+        return StringUtils.join(
+            metadata.map {
+                "${urlEncode(it.key)}=${urlEncode(it.value)}"
+            },
+            "&"
+        )
+    }
+
+    private fun urlEncode(str: String?): String {
+        return if (str.isNullOrBlank()) {
+            ""
+        } else {
+            URLEncoder.encode(str, Charsets.UTF_8.toString()).replace("+", "%20")
         }
     }
 
@@ -104,15 +147,18 @@ class ArchiveApi : BaseApi() {
         private const val ARCHIVE_PROPS_PIPELINE_ID = "pipelineId"
         private const val ARCHIVE_PROPS_BUILD_ID = "buildId"
         private const val ARCHIVE_PROPS_BUILD_NO = "buildNo"
+        private const val ARCHIVE_PROPS_TASK_ID = "taskId"
         private const val ARCHIVE_PROPS_USER_ID = "userId"
         private const val ARCHIVE_PROPS_APP_VERSION = "appVersion"
         private const val ARCHIVE_PROPS_APP_BUNDLE_IDENTIFIER = "bundleIdentifier"
         private const val ARCHIVE_PROPS_APP_APP_TITLE = "appTitle"
         private const val ARCHIVE_PROPS_APP_IMAGE = "image"
         private const val ARCHIVE_PROPS_APP_FULL_IMAGE = "fullImage"
+        private const val ARCHIVE_PROPS_APP_SCHEME = "appScheme"
+        private const val ARCHIVA_PROPS_APP_NAME = "appName"
         private const val ARCHIVE_PROPS_SOURCE = "source"
 
-        private const val BKREPO_METADATA_PREFIX = "X-BKREPO-META-"
+        private const val BKREPO_METADATA = "X-BKREPO-META"
         private const val BKREPO_UID = "X-BKREPO-UID"
         private const val BKREPO_OVERRIDE = "X-BKREPO-OVERWRITE"
     }

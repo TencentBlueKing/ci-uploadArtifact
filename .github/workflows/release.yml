@@ -22,7 +22,7 @@ jobs:
           java-package: jdk
           architecture: x64
       - name: Set up Maven
-        uses: stCarolas/setup-maven@v3
+        uses: stCarolas/setup-maven@v.4.5
         with:
           maven-version: 3.6.1
       - name: Change Maven Settings

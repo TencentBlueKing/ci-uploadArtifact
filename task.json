@@ -19,11 +19,11 @@
       "hidden": false,
       "isSensitive": false
     },
-    "isCustomize": {
-      "text": "归档至自定义版本仓库",
+    "customize": {
+      "text": "归档至自定义仓库",
       "default": false,
       "type": "atom-checkbox",
-      "desc": " 流水线仓库：以流水线名称+构建号自动生成的目录结构\n自定义版本仓库：可自定义版本仓库目录结构，不存在将自动创建",
+      "desc": " 流水线仓库：以流水线名称+构建号自动生成的目录结构\n自定义仓库：可自定义仓库目录结构，不存在将自动创建",
       "required": false,
       "disabled": false,
       "hidden": false,
@@ -40,7 +40,7 @@
         "operation": "AND",
         "expression": [
           {
-            "key": "isCustomize",
+            "key": "customize",
             "value": true
           }
         ]

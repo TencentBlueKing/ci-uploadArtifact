@@ -12,10 +12,9 @@ import java.nio.file.FileSystems
 class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
     override fun execute(atomContext: AtomContext<UploadArtifactParam>) {
         val atomParam = atomContext.param
-        val atomResult = atomContext.result
 
         val filePath = atomParam.filePath
-        val isCustomize = atomParam.isCustomize == "true"
+        val isCustomize = atomParam.customize == "true"
         val workspace = File(atomParam.bkWorkspace)
         val destPath: String = atomParam.destPath ?: ""
         val filesToUpload = mutableSetOf<String>()

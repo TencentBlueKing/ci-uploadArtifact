@@ -8,6 +8,6 @@ import lombok.EqualsAndHashCode
 @EqualsAndHashCode(callSuper = true)
 class UploadArtifactParam : AtomBaseParam() {
     val filePath: String = ""
-    val isCustomize: String = ""
+    val customize: String = ""
     val destPath: String = ""
 }
