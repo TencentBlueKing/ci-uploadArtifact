@@ -8,6 +8,10 @@ import lombok.EqualsAndHashCode
 @EqualsAndHashCode(callSuper = true)
 class UploadArtifactParam : AtomBaseParam() {
     val filePath: String = ""
-    val customize: String = ""
+    val repoName: String = "pipeline"
     val destPath: String = ""
+    val isParentPipeline: Boolean = false
+    val downloadFiles: String = ""
+    val metadata: String = ""
+    val enableMD5Checksum: Boolean = false
 }

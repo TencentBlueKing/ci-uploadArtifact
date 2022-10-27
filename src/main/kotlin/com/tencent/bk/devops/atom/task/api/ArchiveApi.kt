@@ -1,9 +1,12 @@
-package com.tencent.bk.devops.atom.task
+package com.tencent.bk.devops.atom.task.api
 
 import com.google.common.collect.Maps
 import com.tencent.bk.devops.atom.api.BaseApi
 import com.tencent.bk.devops.atom.exception.AtomException
-import com.tencent.bk.devops.atom.pojo.AtomBaseParam
+import com.tencent.bk.devops.atom.task.UploadArtifactParam
+import com.tencent.bk.devops.atom.task.util.IosUtils
+import com.tencent.bkrepo.common.api.util.readJsonString
+import com.tencent.bkrepo.common.artifact.hash.md5
 import net.dongliu.apk.parser.ApkFile
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -18,7 +21,7 @@ import java.util.Locale
 class ArchiveApi : BaseApi() {
     private val atomHttpClient = AtomHttpClient()
 
-    fun uploadBkRepoCustomFile(file: File, destPath: String, atomBaseParam: AtomBaseParam) {
+    fun uploadBkRepoCustomFile(file: File, destPath: String, atomBaseParam: UploadArtifactParam) {
         val bkrepoPath = (destPath.removeSuffix("/") + "/" + file.name).removePrefix("/").removePrefix("./")
         val request = atomHttpClient.buildAtomPut(
             "/bkrepo/api/build/generic/${atomBaseParam.projectName}/custom/$bkrepoPath",
@@ -28,7 +31,7 @@ class ArchiveApi : BaseApi() {
         uploadFile(request)
     }
 
-    fun uploadBkRepoPipelineFile(file: File, atomBaseParam: AtomBaseParam) {
+    fun uploadBkRepoPipelineFile(file: File, atomBaseParam: UploadArtifactParam) {
         val request = buildPut(
             "/bkrepo/api/build/generic/${atomBaseParam.projectName}/pipeline/${atomBaseParam.pipelineId}/${atomBaseParam.pipelineBuildId}/${file.name}",
             file.asRequestBody("application/octet-stream".toMediaType()),
@@ -58,23 +61,49 @@ class ArchiveApi : BaseApi() {
 
     private fun getUploadHeader(
         file: File,
-        atomParam: AtomBaseParam
+        atomParam: UploadArtifactParam
     ): HashMap<String, String> {
+        val md5Check = atomParam.enableMD5Checksum
         val header = Maps.newHashMap<String, String>()
-        header[BKREPO_UID] = atomParam.pipelineStartUserName
+        header[BKREPO_UID] = atomParam.pipelineStartUserId
         header[BKREPO_OVERRIDE] = "true"
-
-        val metadata = mutableMapOf<String, String>()
+        if (md5Check) {
+            val md5 = file.md5()
+            logger.info("file ${file.absolutePath} md5: $md5")
+            header[BKREPO_MD5] = md5
+        }
+        val metadata = getMetadata(atomParam.metadata)
         metadata[ARCHIVE_PROPS_PROJECT_ID] = atomParam.projectName
         metadata[ARCHIVE_PROPS_PIPELINE_ID] = atomParam.pipelineId
         metadata[ARCHIVE_PROPS_BUILD_ID] = atomParam.pipelineBuildId
-        metadata[ARCHIVE_PROPS_USER_ID] = atomParam.pipelineStartUserName
+        metadata[ARCHIVE_PROPS_USER_ID] = atomParam.pipelineStartUserId
         metadata[ARCHIVE_PROPS_BUILD_NO] = atomParam.pipelineBuildNum
         metadata[ARCHIVE_PROPS_TASK_ID] = atomParam.pipelineTaskId
         metadata[ARCHIVE_PROPS_SOURCE] = "pipeline"
         metadata.putAll(getAppMetadata(file))
         header[BKREPO_METADATA] = Base64.getEncoder().encodeToString(buildMetadataHeader(metadata).toByteArray())
         return header
+    }
+
+    private fun getMetadata(strValue: String): MutableMap<String, String> {
+        val map = if (strValue.isNullOrBlank()) {
+            mutableMapOf()
+        } else {
+            try {
+                val map = mutableMapOf<String, String>()
+                strValue.readJsonString<List<Map<String, String>>>()
+                    .filterNot { it["key"].isNullOrBlank() }
+                    .filterNot { it["value"].isNullOrBlank() }.map {
+                        map[it["key"]!!] = it["value"]!!
+                    }
+                map
+            } catch (e: Exception) {
+                logger.error("fail to deserialize input: $strValue")
+                mutableMapOf()
+            }
+        }
+        logger.debug("get param metadata: $map")
+        return map
     }
 
     private fun getAppMetadata(file: File): Map<String, String> {
@@ -161,5 +190,6 @@ class ArchiveApi : BaseApi() {
         private const val BKREPO_METADATA = "X-BKREPO-META"
         private const val BKREPO_UID = "X-BKREPO-UID"
         private const val BKREPO_OVERRIDE = "X-BKREPO-OVERWRITE"
+        private const val BKREPO_MD5 = "X-BKREPO-MD5"
     }
 }

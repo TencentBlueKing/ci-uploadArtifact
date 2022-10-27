@@ -1,4 +1,4 @@
-package com.tencent.bk.devops.atom.task
+package com.tencent.bk.devops.atom.task.util
 
 import com.dd.plist.NSArray
 import com.dd.plist.NSDictionary

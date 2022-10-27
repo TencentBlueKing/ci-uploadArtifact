@@ -1,4 +1,4 @@
-package com.tencent.bk.devops.atom.task
+package com.tencent.bk.devops.atom.task.util
 
 import com.tencent.bk.devops.atom.pojo.AtomBaseParam
 import org.slf4j.LoggerFactory

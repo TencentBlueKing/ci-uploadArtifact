@@ -2,8 +2,18 @@ package com.tencent.bk.devops.atom.task
 
 import com.tencent.bk.devops.atom.AtomContext
 import com.tencent.bk.devops.atom.exception.AtomException
+import com.tencent.bk.devops.atom.pojo.StringData
 import com.tencent.bk.devops.atom.spi.AtomService
 import com.tencent.bk.devops.atom.spi.TaskAtom
+import com.tencent.bk.devops.atom.task.api.ArchiveApi
+import com.tencent.bk.devops.atom.task.constant.PARENT_BUILD_ID
+import com.tencent.bk.devops.atom.task.constant.PARENT_PIPELINE_ID
+import com.tencent.bk.devops.atom.task.constant.REPO_CUSTOM
+import com.tencent.bk.devops.atom.task.constant.REPO_PIPELINE
+import com.tencent.bk.devops.atom.task.constant.UPLOAD_MAX_FILE_COUNT
+import com.tencent.bk.devops.atom.task.util.FileGlobMatch
+import com.tencent.bkrepo.common.api.util.readJsonString
+import com.tencent.bkrepo.common.artifact.path.PathUtils
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.FileSystems
@@ -12,11 +22,23 @@ import java.nio.file.FileSystems
 class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
     override fun execute(atomContext: AtomContext<UploadArtifactParam>) {
         val atomParam = atomContext.param
-
+        val domain =
+            atomParam.bkSensitiveConfInfo["BK_REPO_DOMAIN"] ?: throw AtomException("please set param BK_REPO_DOMAIN")
+        val projectId = atomParam.projectName
         val filePath = atomParam.filePath
-        val isCustomize = atomParam.customize == "true"
+        val repoName = atomParam.repoName
         val workspace = File(atomParam.bkWorkspace)
-        val destPath: String = atomParam.destPath ?: ""
+        val destPath = atomParam.destPath
+        val isParentPipeline = atomParam.isParentPipeline
+        val downloadFiles = getDownloadFiles(atomParam.downloadFiles)
+
+        if (repoName == REPO_PIPELINE && isParentPipeline) {
+            val parentPipelineId = System.getenv(PARENT_PIPELINE_ID)
+            val parentBuildId = System.getenv(PARENT_BUILD_ID)
+            parentPipelineId?.let { atomParam.pipelineId = parentPipelineId }
+            parentBuildId?.let { atomParam.pipelineBuildId = parentBuildId }
+        }
+
         val filesToUpload = mutableSetOf<String>()
         filePath.split(",").forEach {
             filesToUpload.addAll(
@@ -26,24 +48,51 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
             )
         }
 
+        val downloadFileMap = mutableMapOf<String, String>()
+        downloadFiles.forEach {
+            val key = matchFiles(workspace, it["path"]!!.trim().removePrefix("./"))
+                .map { file -> file.absolutePath }.firstOrNull()
+            val value = it["param"]!!
+            if (key == null) {
+                logger.warn("path[${it["path"]}] doesn't match any file, please check your input")
+            } else {
+                downloadFileMap[key] = value
+            }
+        }
+        logger.info("${filesToUpload.size} file to upload")
+
         if (filesToUpload.isEmpty()) {
             logger.error(" 0 file to upload, please check your input")
             throw AtomException("no file match")
         }
-        if (filesToUpload.size > maxFileCount) {
-            logger.error("file to upload count(${filesToUpload.size}) exceed $maxFileCount, please check your input")
+        if (filesToUpload.size > UPLOAD_MAX_FILE_COUNT) {
+            logger.error("file to upload count(${filesToUpload.size}) exceed $UPLOAD_MAX_FILE_COUNT")
             throw AtomException("too many match files")
         }
 
         logger.info("${filesToUpload.size} file matched to upload")
         filesToUpload.forEach {
-            if (isCustomize) {
-                archiveApi.uploadBkRepoCustomFile(File(it), destPath, atomParam)
+            val file = File(it)
+            val fullDestPath: String
+            when (repoName) {
+                REPO_CUSTOM -> {
+                    fullDestPath = PathUtils.normalizeFullPath("$destPath/${file.name}")
+                    archiveApi.uploadBkRepoCustomFile(file, destPath, atomParam)
+                }
 
-            } else {
-                archiveApi.uploadBkRepoPipelineFile(File(it), atomParam)
+                else -> {
+                    fullDestPath = PathUtils.normalizeFullPath(
+                        "/${atomParam.pipelineId}/${atomParam.pipelineBuildId}/${file.name}"
+                    )
+                    archiveApi.uploadBkRepoPipelineFile(File(it), atomParam)
+                }
             }
             logger.info("$it uploaded")
+            if (downloadFileMap.containsKey(it)) {
+                atomContext.result.data[downloadFileMap[it]] =
+                    StringData(generateDownloadUrl(domain, projectId, repoName, fullDestPath))
+                logger.info("add file[${it}] download url to output param[${downloadFileMap[it]}]")
+            }
         }
         logger.info("upload ${filesToUpload.size} files done")
     }
@@ -54,7 +103,7 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
         val absPath = file.startsWith("/") || (file[0].isLetter() && file[1] == ':')
         val fullFile = if (!absPath) File(workspace.absolutePath + File.separator + file)
         else File(file)
-        if (fullFile.isDirectory) throw RuntimeException("this path is directory......")
+        if (fullFile.isDirectory) throw AtomException("this path is directory......")
         val fullPath = fullFile.absolutePath
         val filePathGlob = "glob:$fullPath"
         val fileList: List<File>
@@ -134,9 +183,35 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
         return list
     }
 
+    private fun getDownloadFiles(strValue: String): List<Map<String, String>> {
+        val list: List<Map<String, String>> = if (strValue.isNullOrBlank()) {
+            emptyList()
+        } else {
+            try {
+                strValue.readJsonString<List<Map<String, String>>>()
+                    .filterNot { it["path"].isNullOrBlank() }
+                    .filterNot { it["path"]!!.contains("*") }
+                    .filterNot { it["param"].isNullOrBlank() }
+            } catch (e: Exception) {
+                logger.error("fail to deserialize input: $strValue")
+                emptyList()
+            }
+        }
+        logger.debug("get param download files: ${strValue?.replace("\n", "")}")
+        return list
+    }
+
+    private fun generateDownloadUrl(
+        domain: String,
+        projectId: String,
+        repoName: String,
+        fullDestPath: String
+    ): String {
+        return "$domain/web/generic/$projectId/$repoName/$fullDestPath?download=true"
+    }
+
     companion object {
         private val logger = LoggerFactory.getLogger(UploadArtifactAtom::class.java)
-        private const val maxFileCount = 500
         var archiveApi = ArchiveApi()
     }
 }

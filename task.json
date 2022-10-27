@@ -11,26 +11,49 @@
     "filePath": {
       "label": "待归档的文件",
       "default": "",
-      "placeholder": "package.zip",
+      "placeholder": "需要归档的文件列表，支持Glob通配符(目录名中只能包含*或者**通配符，待匹配文件名支持所有Glob通配符)，\r\n不支持归档目录",
       "type": "vuex-input",
-      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，不支持归档目录",
+      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，\r\n不支持归档目录",
       "required": true,
       "disabled": false,
       "hidden": false,
       "isSensitive": false
     },
-    "customize": {
-      "text": "归档至自定义仓库",
+    "repoName":{
+      "type": "enum-input",
+      "default": "pipeline",
+      "required": true,
+      "list": [
+        {
+          "value": "pipeline",
+          "label": "流水线仓库"
+        },
+        {
+          "value": "custom",
+          "label": "自定义仓库"
+        }
+      ]
+    },
+    "isParentPipeline": {
+      "text": "归档至父流水线",
       "default": false,
       "type": "atom-checkbox",
-      "desc": " 流水线仓库：以流水线名称+构建号自动生成的目录结构\n自定义仓库：可自定义仓库目录结构，不存在将自动创建",
       "required": false,
       "disabled": false,
       "hidden": false,
-      "isSensitive": false
+      "isSensitive": false,
+      "rely": {
+        "operation": "AND",
+        "expression": [
+          {
+            "key": "repoName",
+            "value": "pipeline"
+          }
+        ]
+      }
     },
     "destPath": {
-      "default": "upload/",
+      "default": "./",
       "type": "vuex-input",
       "required": false,
       "disabled": false,
@@ -40,11 +63,65 @@
         "operation": "AND",
         "expression": [
           {
-            "key": "customize",
-            "value": true
+            "key": "repoName",
+            "value": "custom"
           }
         ]
       }
+    },
+    "downloadFiles" : {
+      "label" : "需要输出下载链接的文件",
+      "type" : "dynamic-parameter-simple",
+      "parameters": [{
+        "rowAttributes": [
+          {
+            "id": "path",
+            "label": "文件路径",
+            "type": "input",
+            "placeholder" : "文件路径",
+            "desc" : "单个文件在当前工作空间的相对路径或绝对路径，不支持通配符"
+          },
+          {
+            "id": "param",
+            "label": "输出变量名称",
+            "type": "input",
+            "placeholder" : "输出变量名称",
+            "desc": "接收对应下载链接的变量名称"
+          }
+        ],
+        "columnNumber": 2
+      }],
+      "desc" : "指定需要生成下载链接的文件，以及接收对应下载链接的变量，以便于在下游插件里通过变量获得链接"
+    },
+    "metadata" : {
+      "label" : "自定义元数据",
+      "type" : "dynamic-parameter-simple",
+      "parameters": [{
+        "rowAttributes": [
+          {
+            "id": "key",
+            "label": "元数据属性键",
+            "type": "input",
+            "placeholder" : "元数据属性键",
+            "desc": "元数据属性键"
+          },
+          {
+            "id": "value",
+            "label": "元数据属性值",
+            "type": "input",
+            "placeholder" : "元数据属性值",
+            "desc": "元数据属性值"
+          }
+        ],
+        "columnNumber": 2
+      }],
+      "desc" : "为归档的所有构件添加自定义的元数据"
+    },
+    "enableMD5Checksum": {
+      "text": "启用MD5校验",
+      "default": false,
+      "type": "atom-checkbox",
+      "desc" : "校验本地与上传至制品库的文件MD5是否一致"
     }
   }
 }
