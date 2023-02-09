@@ -9,11 +9,11 @@
   },
   "input": {
     "filePath": {
-      "label": "待归档的文件",
+      "label": "Documents to be archived",
       "default": "",
-      "placeholder": "需要归档的文件列表，支持Glob通配符(目录名中只能包含*或者**通配符，待匹配文件名支持所有Glob通配符)，\r\n不支持归档目录",
+      "placeholder": "The list of files that need to be archived supports Glob wildcards (the directory name can only contain * or ** wildcards, and the file name to be matched supports all Glob wildcards), \r\n does not support archive directories",
       "type": "vuex-input",
-      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，\r\n不支持归档目录",
+      "desc": "Archive the build products under the relative path or absolute path directory of the current workspace. Wildcards can be used to match, and multiple paths (separated by , in English) are supported. \r\n does not support archive directories",
       "required": true,
       "disabled": false,
       "hidden": false,
@@ -26,16 +26,16 @@
       "list": [
         {
           "value": "pipeline",
-          "label": "流水线仓库"
+          "label": "Pipeline warehouse"
         },
         {
           "value": "custom",
-          "label": "自定义仓库"
+          "label": "Custom warehouse"
         }
       ]
     },
     "isParentPipeline": {
-      "text": "归档至父流水线",
+      "text": "Archive to parent pipeline",
       "default": false,
       "type": "atom-checkbox",
       "required": false,
@@ -70,63 +70,63 @@
       }
     },
     "downloadFiles" : {
-      "label" : "需要输出下载链接的文件",
+      "label" : "The file that needs to output the download link",
       "type" : "dynamic-parameter-simple",
       "parameters": [{
         "rowAttributes": [
           {
             "id": "path",
-            "label": "文件路径",
+            "label": "File Path",
             "type": "input",
-            "placeholder" : "文件路径",
-            "desc" : "单个文件在当前工作空间的相对路径或绝对路径，不支持通配符"
+            "placeholder" : "File path",
+            "desc" : "The relative or absolute path of a single file in the current workspace, wildcards are not supported"
           },
           {
             "id": "param",
-            "label": "输出变量名称",
+            "label": "Output Variable Name",
             "type": "input",
-            "placeholder" : "输出变量名称",
-            "desc": "接收对应下载链接的变量名称"
+            "placeholder" : "Output Variable Name",
+            "desc": "Receive the variable name corresponding to the download link"
           }
         ],
         "columnNumber": 2
       }],
-      "desc" : "指定需要生成下载链接的文件，以及接收对应下载链接的变量，以便于在下游插件里通过变量获得链接"
+      "desc" : "Specify the file that needs to generate the download link, and receive the variable of the corresponding download link, so that the link can be obtained through the variable in the downstream plug-in"
     },
     "metadata" : {
-      "label" : "自定义元数据",
+      "label" : "Custom Metadata",
       "type" : "dynamic-parameter-simple",
       "parameters": [{
         "rowAttributes": [
           {
             "id": "key",
-            "label": "元数据属性键",
+            "label": "Metadata Attribute Key",
             "type": "input",
-            "placeholder" : "元数据属性键",
-            "desc": "元数据属性键"
+            "placeholder" : "Metadata Attribute Key",
+            "desc": "Metadata Attribute Key"
           },
           {
             "id": "value",
-            "label": "元数据属性值",
+            "label": "Metadata Attribute Value",
             "type": "input",
-            "placeholder" : "元数据属性值",
-            "desc": "元数据属性值"
+            "placeholder" : "Metadata Attribute Value",
+            "desc": "Metadata Attribute Value"
           }
         ],
         "columnNumber": 2
       }],
-      "desc" : "为归档的所有构件添加自定义的元数据"
+      "desc" : "Add custom metadata to all artifacts in the archive"
     },
     "enableMD5Checksum": {
-      "text": "启用MD5校验",
+      "text": "Enable MD5 check",
       "default": false,
       "type": "atom-checkbox",
-      "desc" : "校验本地与上传至制品库的文件MD5是否一致"
+      "desc" : "Check whether the MD5 of the local file and the file uploaded to the product library are consistent"
     }
   },
   "releaseInfo": {
     "projectId": "Demo",
-    "name": "归档构件",
+    "name": "uploadArtifact",
     "language": "java",
     "logoUrl": "${{indexFile(\"uploadArtifact.png\")}}",
     "category": "TASK",
@@ -139,7 +139,7 @@
     ],
     "labelCodes": [
     ],
-    "summary": "本插件将构建机本地的文件归档至流水线仓库或自定义仓库，对产出物进行归档",
+    "summary": "This plugin archives the local files of the builder to the pipeline warehouse or custom warehouse, and archives the output.",
     "description": "${{indexFile(\"README.md\")}}",
     "configInfo": {
       "frontendType": "NORMAL"

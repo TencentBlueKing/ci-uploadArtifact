@@ -86,6 +86,19 @@
                             </descriptors>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>package_en</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>uploadArtifact_en</finalName>
+                            <descriptors>
+                                <descriptor>package/assemblies/assembly_en.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>

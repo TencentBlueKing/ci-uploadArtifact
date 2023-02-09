@@ -4,7 +4,12 @@
     </formats>
     <files>
         <file>
-            <source>docs/desc.md</source>
+            <source>task_en.json</source>
+            <outputDirectory>/</outputDirectory>
+            <destName>task.json</destName>
+        </file>
+        <file>
+            <source>docs/desc_en.md</source>
             <outputDirectory>/file</outputDirectory>
             <destName>README.md</destName>
         </file>
@@ -22,10 +27,10 @@
             </includes>
         </fileSet>
         <fileSet>
-            <directory>.</directory>
-            <outputDirectory>/</outputDirectory>
+            <directory>./release</directory>
+            <outputDirectory>/file</outputDirectory>
             <includes>
-                <include>task.json</include>
+                <include>*</include>
             </includes>
         </fileSet>
     </fileSets>
