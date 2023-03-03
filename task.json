@@ -125,7 +125,7 @@
     }
   },
   "releaseInfo": {
-    "projectId": "Demo",
+    "projectId": "demo",
     "name": "归档构件",
     "language": "java",
     "logoUrl": "${{indexFile(\"uploadArtifact.png\")}}",
