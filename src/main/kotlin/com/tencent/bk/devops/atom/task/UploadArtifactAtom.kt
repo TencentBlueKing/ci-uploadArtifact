@@ -94,6 +94,17 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
                 logger.info("add file[${it}] download url to output param[${downloadFileMap[it]}]")
             }
         }
+
+        if (repoName == REPO_PIPELINE) {
+            archiveApi.setPipelineMetadata(
+                atomParam.pipelineStartUserId,
+                atomParam.projectName,
+                atomParam.pipelineId,
+                atomParam.pipelineName,
+                atomParam.pipelineBuildId,
+                atomParam.pipelineBuildNum
+            )
+        }
         logger.info("upload ${filesToUpload.size} files done")
     }
 

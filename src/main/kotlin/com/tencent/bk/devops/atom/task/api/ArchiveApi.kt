@@ -4,13 +4,19 @@ import com.google.common.collect.Maps
 import com.tencent.bk.devops.atom.api.BaseApi
 import com.tencent.bk.devops.atom.exception.AtomException
 import com.tencent.bk.devops.atom.task.UploadArtifactParam
+import com.tencent.bk.devops.atom.task.constant.REPO_PIPELINE
+import com.tencent.bk.devops.atom.task.pojo.MetadataModel
+import com.tencent.bk.devops.atom.task.pojo.UserMetadataSaveRequest
 import com.tencent.bk.devops.atom.task.util.IosUtils
+import com.tencent.bkrepo.common.api.constant.MediaTypes
 import com.tencent.bkrepo.common.api.util.readJsonString
+import com.tencent.bkrepo.common.api.util.toJsonString
 import com.tencent.bkrepo.common.artifact.hash.md5
 import net.dongliu.apk.parser.ApkFile
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -38,6 +44,52 @@ class ArchiveApi : BaseApi() {
             getUploadHeader(file, atomBaseParam)
         )
         uploadFile(request)
+    }
+
+    fun setPipelineMetadata(
+        userId: String,
+        projectId: String,
+        pipelineId: String,
+        pipelineName: String,
+        buildId: String,
+        buildNo: String
+    ) {
+        try {
+            saveMetadata(
+                userId = userId,
+                projectId = projectId,
+                repoName = REPO_PIPELINE,
+                fullPath = "/$pipelineId",
+                metadata = mapOf(METADATA_DISPLAY_NAME to pipelineName)
+            )
+            saveMetadata(
+                userId = userId,
+                projectId = projectId,
+                repoName = REPO_PIPELINE,
+                fullPath = "/$pipelineId/$buildId",
+                metadata = mapOf(METADATA_DISPLAY_NAME to buildNo)
+            )
+        } catch (e: Exception) {
+            logger.warn("set pipeline metadata failed: ", e)
+        }
+    }
+
+    private fun saveMetadata(
+        userId: String,
+        projectId: String,
+        repoName: String,
+        fullPath: String,
+        metadata: Map<String, String>
+    ) {
+        val url = "/bkrepo/api/build/repository/api/metadata/$projectId/$repoName/$fullPath"
+        val metadataSaveRequest = UserMetadataSaveRequest(metadata.map { MetadataModel(it.key, it.value) })
+        val header = mutableMapOf(BKREPO_UID to userId)
+        val request = buildPost(
+            url,
+            metadataSaveRequest.toJsonString().toRequestBody(MediaTypes.APPLICATION_JSON.toMediaType()),
+            header
+        )
+        request(request, "save node[$fullPath] metadata failed")
     }
 
     private fun uploadFile(request: Request, retry: Boolean = false) {
@@ -122,6 +174,7 @@ class ArchiveApi : BaseApi() {
                     )
                     result
                 }
+
                 file.name.endsWith(".apk") -> {
                     val apkFile = ApkFile(file)
                     apkFile.preferredLocale = Locale.SIMPLIFIED_CHINESE
@@ -191,5 +244,7 @@ class ArchiveApi : BaseApi() {
         private const val BKREPO_UID = "X-BKREPO-UID"
         private const val BKREPO_OVERRIDE = "X-BKREPO-OVERWRITE"
         private const val BKREPO_MD5 = "X-BKREPO-MD5"
+
+        private const val METADATA_DISPLAY_NAME = "displayName"
     }
 }
