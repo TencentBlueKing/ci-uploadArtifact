@@ -41,17 +41,16 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
 
         val filesToUpload = mutableSetOf<String>()
         filePath.split(",").forEach {
-            filesToUpload.addAll(
-                matchFiles(workspace, it.trim().removePrefix("./")).map { file ->
-                    file.absolutePath
-                }
+            filesToUpload.addAll(matchFiles(workspace, it.trim().removePrefix("./"))
+                .map { file -> file.absolutePath }
             )
         }
 
         val downloadFileMap = mutableMapOf<String, String>()
         downloadFiles.forEach {
             val key = matchFiles(workspace, it["path"]!!.trim().removePrefix("./"))
-                .map { file -> file.absolutePath }.firstOrNull()
+                .map { file -> file.absolutePath }
+                .firstOrNull()
             val value = it["param"]!!
             if (key == null) {
                 logger.warn("path[${it["path"]}] doesn't match any file, please check your input")
@@ -73,24 +72,24 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
         logger.info("${filesToUpload.size} file matched to upload")
         filesToUpload.forEach {
             val file = File(it)
-            val fullDestPath: String
+            val fullPath: String
             when (repoName) {
                 REPO_CUSTOM -> {
-                    fullDestPath = PathUtils.normalizeFullPath("$destPath/${file.name}")
-                    archiveApi.uploadBkRepoCustomFile(file, destPath, atomParam)
+                    fullPath = PathUtils.normalizeFullPath("/$destPath/${file.name}")
+                    archiveApi.uploadFile(file, destPath, atomParam)
                 }
 
                 else -> {
-                    fullDestPath = PathUtils.normalizeFullPath(
+                    fullPath = PathUtils.normalizeFullPath(
                         "/${atomParam.pipelineId}/${atomParam.pipelineBuildId}/${file.name}"
                     )
-                    archiveApi.uploadBkRepoPipelineFile(File(it), atomParam)
+                    archiveApi.uploadFile(file, fullPath, atomParam)
                 }
             }
             logger.info("$it uploaded")
             if (downloadFileMap.containsKey(it)) {
                 atomContext.result.data[downloadFileMap[it]] =
-                    StringData(generateDownloadUrl(domain, projectId, repoName, fullDestPath))
+                    StringData(generateDownloadUrl(domain, projectId, repoName, fullPath))
                 logger.info("add file[${it}] download url to output param[${downloadFileMap[it]}]")
             }
         }
@@ -186,9 +185,7 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
                             list.add(file)
                         }
                     }
-
                 }
-
             }
         }
         return list
@@ -199,10 +196,8 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
             emptyList()
         } else {
             try {
-                strValue.readJsonString<List<Map<String, String>>>()
-                    .filterNot { it["path"].isNullOrBlank() }
-                    .filterNot { it["path"]!!.contains("*") }
-                    .filterNot { it["param"].isNullOrBlank() }
+                strValue.readJsonString<List<Map<String, String>>>().filterNot { it["path"].isNullOrBlank() }
+                    .filterNot { it["path"]!!.contains("*") }.filterNot { it["param"].isNullOrBlank() }
             } catch (e: Exception) {
                 logger.error("fail to deserialize input: $strValue")
                 emptyList()
@@ -213,10 +208,7 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
     }
 
     private fun generateDownloadUrl(
-        domain: String,
-        projectId: String,
-        repoName: String,
-        fullDestPath: String
+        domain: String, projectId: String, repoName: String, fullDestPath: String
     ): String {
         return "$domain/web/generic/$projectId/$repoName/$fullDestPath?download=true"
     }

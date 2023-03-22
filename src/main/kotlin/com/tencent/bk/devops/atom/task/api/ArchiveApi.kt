@@ -1,17 +1,27 @@
 package com.tencent.bk.devops.atom.task.api
 
-import com.google.common.collect.Maps
 import com.tencent.bk.devops.atom.api.BaseApi
+import com.tencent.bk.devops.atom.api.SdkEnv
 import com.tencent.bk.devops.atom.exception.AtomException
 import com.tencent.bk.devops.atom.task.UploadArtifactParam
 import com.tencent.bk.devops.atom.task.constant.REPO_PIPELINE
 import com.tencent.bk.devops.atom.task.pojo.MetadataModel
 import com.tencent.bk.devops.atom.task.pojo.UserMetadataSaveRequest
 import com.tencent.bk.devops.atom.task.util.IosUtils
+import com.tencent.bkrepo.common.api.constant.HttpHeaders
 import com.tencent.bkrepo.common.api.constant.MediaTypes
+import com.tencent.bkrepo.common.api.constant.StringPool
+import com.tencent.bkrepo.common.api.pojo.Response
 import com.tencent.bkrepo.common.api.util.readJsonString
 import com.tencent.bkrepo.common.api.util.toJsonString
 import com.tencent.bkrepo.common.artifact.hash.md5
+import com.tencent.bkrepo.common.artifact.pojo.RepositoryCategory
+import com.tencent.bkrepo.common.artifact.pojo.RepositoryType
+import com.tencent.bkrepo.generic.pojo.TemporaryAccessToken
+import com.tencent.bkrepo.repository.pojo.project.UserProjectCreateRequest
+import com.tencent.bkrepo.repository.pojo.repo.RepoCreateRequest
+import com.tencent.bkrepo.repository.pojo.token.TemporaryTokenCreateRequest
+import com.tencent.bkrepo.repository.pojo.token.TokenType
 import net.dongliu.apk.parser.ApkFile
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -20,30 +30,68 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.net.URLEncoder
 import java.util.Base64
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class ArchiveApi : BaseApi() {
     private val atomHttpClient = AtomHttpClient()
+    private val fileGateway: String? by lazy { SdkEnv.getFileGateway() }
+    private val tokenRequest: Boolean by lazy { !fileGateway.isNullOrBlank() }
+    private var createFlag: Boolean = false
+    private var token: String? = null
 
-    fun uploadBkRepoCustomFile(file: File, destPath: String, atomBaseParam: UploadArtifactParam) {
-        val bkrepoPath = (destPath.removeSuffix("/") + "/" + file.name).removePrefix("/").removePrefix("./")
-        val request = atomHttpClient.buildAtomPut(
-            "/bkrepo/api/build/generic/${atomBaseParam.projectName}/custom/$bkrepoPath",
-            file.asRequestBody("application/octet-stream".toMediaType()),
-            getUploadHeader(file, atomBaseParam)
-        )
-        uploadFile(request)
+    fun uploadFile(file: File, fullPath: String, atomParam: UploadArtifactParam) {
+        if (tokenRequest) {
+            token = createToken(atomParam)
+            createProjectOrRepoIfNotExist(atomParam.pipelineStartUserId, atomParam.projectName, atomParam.repoName)
+            uploadFileByToken(file, fullPath, atomParam)
+        } else {
+            val request = buildPut(
+                "/bkrepo/api/build/generic/${atomParam.projectName}/${atomParam.repoName}$/${urlEncode(fullPath)}",
+                file.asRequestBody("application/octet-stream".toMediaType()),
+                getUploadHeader(file, atomParam)
+            )
+            doRequest(request)
+        }
     }
 
-    fun uploadBkRepoPipelineFile(file: File, atomBaseParam: UploadArtifactParam) {
+    private fun uploadFileByToken(file: File, fullPath: String, atomParam: UploadArtifactParam) {
         val request = buildPut(
-            "/bkrepo/api/build/generic/${atomBaseParam.projectName}/pipeline/${atomBaseParam.pipelineId}/${atomBaseParam.pipelineBuildId}/${file.name}",
+            "$fileGateway/generic/${atomParam.projectName}/${atomParam.repoName}/${urlEncode(fullPath)}?token=$token",
             file.asRequestBody("application/octet-stream".toMediaType()),
-            getUploadHeader(file, atomBaseParam)
+            getUploadHeader(file, atomParam)
         )
-        uploadFile(request)
+        doRequest(request)
+    }
+
+    private fun createToken(atomParam: UploadArtifactParam): String {
+        if (!token.isNullOrBlank()) {
+            return token!!
+        }
+        val tokenCreateRequest = TemporaryTokenCreateRequest(
+            projectId = atomParam.projectName,
+            repoName = atomParam.repoName,
+            fullPathSet = setOf(StringPool.ROOT),
+            authorizedUserSet = setOf(atomParam.pipelineStartUserId),
+            authorizedIpSet = emptySet(),
+            expireSeconds = TimeUnit.DAYS.toSeconds(1),
+            permits = null,
+            type = TokenType.ALL
+        )
+        val request = buildPost(
+            "/bkrepo/api/build/generic/temporary/token/create",
+            tokenCreateRequest.toJsonString().toRequestBody(MediaTypes.APPLICATION_JSON.toMediaType()),
+            buildBaseHeaders(atomParam.pipelineStartUserId)
+        )
+        val (status, response) = doRequest(request)
+        if (status == 200) {
+            return response.readJsonString<Response<List<TemporaryAccessToken>>>().data!!.first().token
+        } else {
+            throw AtomException(response)
+        }
     }
 
     fun setPipelineMetadata(
@@ -92,34 +140,102 @@ class ArchiveApi : BaseApi() {
         request(request, "save node[$fullPath] metadata failed")
     }
 
-    private fun uploadFile(request: Request, retry: Boolean = false) {
+
+    private fun createProjectOrRepoIfNotExist(userId: String, projectId: String, repoName: String) {
+        if (createFlag) {
+            return
+        }
+        createProject(userId, projectId)
+        createRepo(userId, projectId, repoName)
+        createFlag = true
+    }
+
+    private fun createProject(userId: String, projectId: String) {
+        val projectCreateRequest = UserProjectCreateRequest(projectId, projectId, "")
+        val request = buildPost(
+            "$fileGateway/repository/api/project/create",
+            projectCreateRequest.toJsonString().toRequestBody(MediaTypes.APPLICATION_JSON.toMediaType()),
+            buildBaseHeaders(userId)
+        )
+        val (status, response) = doRequest(request)
+        if (status == 200) {
+            return
+        }
+        val code = response.readJsonString<Response<Void>>().code
+        if (code == ERROR_PROJECT_EXISTED) {
+            return
+        } else {
+            throw AtomException(response)
+        }
+    }
+
+    private fun createRepo(userId: String, projectId: String, repoName: String) {
+        val repoCreateRequest = RepoCreateRequest(
+            projectId = projectId,
+            name = repoName,
+            type = RepositoryType.GENERIC,
+            category = RepositoryCategory.LOCAL,
+            public = false,
+            operator = userId
+        )
+        val request = buildPost(
+            "$fileGateway/repository/api/repo/create",
+            repoCreateRequest.toJsonString().toRequestBody(MediaTypes.APPLICATION_JSON.toMediaType()),
+            buildBaseHeaders(userId)
+        )
+        val (status, response) = doRequest(request)
+        if (status == 200) {
+            return
+        }
+        val code = response.readJsonString<Response<Void>>().code
+        if (code == ERROR_REPO_EXISTED) {
+            return
+        } else {
+            throw AtomException(response)
+        }
+    }
+
+    private fun doRequest(request: Request, retry: Int = 3): Pair<Int,String> {
         try {
+            logger.info("request url: ${request.url}, header: ${request.headers}")
             val response = atomHttpClient.doRequest(request)
-            if (!response.isSuccessful) {
-                logger.error("upload file failed, code: ${response.code}, responseContent: ${response.body!!.string()}")
-                throw AtomException("upload file failed")
+            val responseContent = response.body!!.string()
+            if (response.isSuccessful) {
+                return Pair(response.code, responseContent)
             }
-        } catch (e: Exception) {
-            logger.error("upload file error, cause: ${e.message}")
-            if (!retry) {
+            logger.debug("request url: ${request.url}, code: ${response.code}, response: $responseContent")
+            if (response.code > 499 && retry > 0) {
+                return doRequest(request, retry - 1)
+            }
+            return Pair(response.code, responseContent)
+        } catch (e: IOException) {
+            logger.error("request[${request.url}] error, ", e)
+            if (retry > 0) {
                 logger.info("retry after 3 seconds")
                 Thread.sleep(3 * 1000L)
-                uploadFile(request, true)
-                return
+                return doRequest(request, retry - 1)
             }
             throw e
         }
     }
 
+    private fun buildBaseHeaders(userId: String): MutableMap<String, String> {
+        val header = mutableMapOf<String, String>()
+        header[BKREPO_UID] = userId
+        if (!token.isNullOrBlank()) {
+            header[HttpHeaders.AUTHORIZATION] = "Temporary $token"
+        }
+        logger.info(header.toString())
+        return header
+    }
+
     private fun getUploadHeader(
         file: File,
         atomParam: UploadArtifactParam
-    ): HashMap<String, String> {
-        val md5Check = atomParam.enableMD5Checksum
-        val header = Maps.newHashMap<String, String>()
-        header[BKREPO_UID] = atomParam.pipelineStartUserId
+    ): MutableMap<String, String> {
+        val header = buildBaseHeaders(atomParam.pipelineStartUserId)
         header[BKREPO_OVERRIDE] = "true"
-        if (md5Check) {
+        if (atomParam.enableMD5Checksum) {
             val md5 = file.md5()
             logger.info("file ${file.absolutePath} md5: $md5")
             header[BKREPO_MD5] = md5
@@ -138,7 +254,7 @@ class ArchiveApi : BaseApi() {
     }
 
     private fun getMetadata(strValue: String): MutableMap<String, String> {
-        val map = if (strValue.isNullOrBlank()) {
+        val map = if (strValue.isBlank()) {
             mutableMapOf()
         } else {
             try {
@@ -187,6 +303,7 @@ class ArchiveApi : BaseApi() {
                     )
                     result
                 }
+
                 else -> {
                     mapOf()
                 }
@@ -214,16 +331,11 @@ class ArchiveApi : BaseApi() {
         }
     }
 
-    private fun urLEncode(str: String?): String {
-        return if (str.isNullOrBlank()) {
-            ""
-        } else {
-            URLEncoder.encode(str, "UTF-8")
-        }
-    }
-
     companion object {
         private val logger = LoggerFactory.getLogger(ArchiveApi::class.java)
+
+        private const val ERROR_PROJECT_EXISTED = 251005
+        private const val ERROR_REPO_EXISTED = 251007
 
         private const val ARCHIVE_PROPS_PROJECT_ID = "projectId"
         private const val ARCHIVE_PROPS_PIPELINE_ID = "pipelineId"
