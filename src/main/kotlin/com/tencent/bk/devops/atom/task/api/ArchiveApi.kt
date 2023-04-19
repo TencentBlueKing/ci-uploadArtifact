@@ -45,6 +45,7 @@ class ArchiveApi : BaseApi() {
 
     fun uploadFile(file: File, fullPath: String, atomParam: UploadArtifactParam) {
         if (tokenRequest) {
+            logger.info("fileGateway: $fileGateway")
             token = createToken(atomParam)
             createProjectOrRepoIfNotExist(atomParam.pipelineStartUserId, atomParam.projectName, atomParam.repoName)
             uploadFileByToken(file, fullPath, atomParam)
@@ -197,7 +198,6 @@ class ArchiveApi : BaseApi() {
 
     private fun doRequest(request: Request, retry: Int = 3): Pair<Int,String> {
         try {
-            logger.info("request url: ${request.url}, header: ${request.headers}")
             val response = atomHttpClient.doRequest(request)
             val responseContent = response.body!!.string()
             if (response.isSuccessful) {
@@ -225,7 +225,6 @@ class ArchiveApi : BaseApi() {
         if (!token.isNullOrBlank()) {
             header[HttpHeaders.AUTHORIZATION] = "Temporary $token"
         }
-        logger.info(header.toString())
         return header
     }
 

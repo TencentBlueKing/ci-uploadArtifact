@@ -76,7 +76,7 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
             when (repoName) {
                 REPO_CUSTOM -> {
                     fullPath = PathUtils.normalizeFullPath("/$destPath/${file.name}")
-                    archiveApi.uploadFile(file, destPath, atomParam)
+                    archiveApi.uploadFile(file, fullPath, atomParam)
                 }
 
                 else -> {
