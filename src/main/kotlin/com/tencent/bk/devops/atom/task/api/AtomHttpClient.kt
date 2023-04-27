@@ -18,13 +18,16 @@ class AtomHttpClient {
         .connectTimeout(10L, TimeUnit.SECONDS)
         .readTimeout(60L, TimeUnit.SECONDS)
         .writeTimeout(60L, TimeUnit.SECONDS)
+        .addNetworkInterceptor(ProgressInterceptor())
         .build()
 
     private val longHttpClient = OkHttpClient.Builder()
         .connectTimeout(10L, TimeUnit.SECONDS)
         .readTimeout(300L, TimeUnit.SECONDS)
         .writeTimeout(300L, TimeUnit.SECONDS)
+        .addNetworkInterceptor(ProgressInterceptor())
         .build()
+
 
     fun doRequest(request: Request): Response {
         return okHttpClient.newCall(request).execute()

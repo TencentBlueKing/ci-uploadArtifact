@@ -5,8 +5,10 @@ import com.tencent.bk.devops.atom.api.SdkEnv
 import com.tencent.bk.devops.atom.exception.AtomException
 import com.tencent.bk.devops.atom.task.UploadArtifactParam
 import com.tencent.bk.devops.atom.task.constant.REPO_PIPELINE
+import com.tencent.bk.devops.atom.task.pojo.FileInfo
 import com.tencent.bk.devops.atom.task.pojo.MetadataModel
 import com.tencent.bk.devops.atom.task.pojo.UserMetadataSaveRequest
+import com.tencent.bk.devops.atom.task.pojo.UserRepoCreateRequest
 import com.tencent.bk.devops.atom.task.util.IosUtils
 import com.tencent.bkrepo.common.api.constant.HttpHeaders
 import com.tencent.bkrepo.common.api.constant.MediaTypes
@@ -19,7 +21,6 @@ import com.tencent.bkrepo.common.artifact.pojo.RepositoryCategory
 import com.tencent.bkrepo.common.artifact.pojo.RepositoryType
 import com.tencent.bkrepo.generic.pojo.TemporaryAccessToken
 import com.tencent.bkrepo.repository.pojo.project.UserProjectCreateRequest
-import com.tencent.bkrepo.repository.pojo.repo.RepoCreateRequest
 import com.tencent.bkrepo.repository.pojo.token.TemporaryTokenCreateRequest
 import com.tencent.bkrepo.repository.pojo.token.TokenType
 import net.dongliu.apk.parser.ApkFile
@@ -39,7 +40,7 @@ import java.util.concurrent.TimeUnit
 class ArchiveApi : BaseApi() {
     private val atomHttpClient = AtomHttpClient()
     private val fileGateway: String? by lazy { SdkEnv.getFileGateway() }
-    private val tokenRequest: Boolean by lazy { !fileGateway.isNullOrBlank() }
+    private val tokenRequest: Boolean by lazy { !fileGateway.isNullOrBlank() && fileGateway!!.contains("bkrepo") }
     private var createFlag: Boolean = false
     private var token: String? = null
 
@@ -51,11 +52,14 @@ class ArchiveApi : BaseApi() {
             uploadFileByToken(file, fullPath, atomParam)
         } else {
             val request = buildPut(
-                "/bkrepo/api/build/generic/${atomParam.projectName}/${atomParam.repoName}$/${urlEncode(fullPath)}",
+                "/bkrepo/api/build/generic/${atomParam.projectName}/${atomParam.repoName}/${urlEncode(fullPath)}",
                 file.asRequestBody("application/octet-stream".toMediaType()),
                 getUploadHeader(file, atomParam)
-            )
-            doRequest(request)
+            ).newBuilder().tag(FileInfo::class.java, FileInfo(file.name, file.length())).build()
+            val (status, response) = doRequest(request)
+            if (status != 200) {
+                throw AtomException(response)
+            }
         }
     }
 
@@ -64,8 +68,11 @@ class ArchiveApi : BaseApi() {
             "$fileGateway/generic/${atomParam.projectName}/${atomParam.repoName}/${urlEncode(fullPath)}?token=$token",
             file.asRequestBody("application/octet-stream".toMediaType()),
             getUploadHeader(file, atomParam)
-        )
-        doRequest(request)
+        ).newBuilder().tag(FileInfo::class.java, FileInfo(file.name, file.length())).build()
+        val (status, response) = doRequest(request)
+        if (status != 200) {
+            throw AtomException(response)
+        }
     }
 
     private fun createToken(atomParam: UploadArtifactParam): String {
@@ -146,9 +153,23 @@ class ArchiveApi : BaseApi() {
         if (createFlag) {
             return
         }
-        createProject(userId, projectId)
-        createRepo(userId, projectId, repoName)
+        if (!checkRepoExist(userId, projectId, repoName)) {
+            createProject(userId, projectId)
+            createRepo(userId, projectId, repoName)
+        }
         createFlag = true
+    }
+
+    private fun checkRepoExist(userId: String, projectId: String, repoName: String): Boolean {
+        val request = buildGet(
+            "$fileGateway/repository/api/repo/exist/$projectId/$repoName",
+            buildBaseHeaders(userId)
+        )
+        val (status, response) = doRequest(request)
+        if (status == 200) {
+            return response.readJsonString<Response<Boolean>>().data!!
+        }
+        return false
     }
 
     private fun createProject(userId: String, projectId: String) {
@@ -171,13 +192,13 @@ class ArchiveApi : BaseApi() {
     }
 
     private fun createRepo(userId: String, projectId: String, repoName: String) {
-        val repoCreateRequest = RepoCreateRequest(
+        val repoCreateRequest = UserRepoCreateRequest(
             projectId = projectId,
             name = repoName,
             type = RepositoryType.GENERIC,
             category = RepositoryCategory.LOCAL,
             public = false,
-            operator = userId
+            pluginRequest = true
         )
         val request = buildPost(
             "$fileGateway/repository/api/repo/create",
