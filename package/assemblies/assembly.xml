@@ -28,6 +28,13 @@
                 <include>task.json</include>
             </includes>
         </fileSet>
+        <fileSet>
+            <directory>${basedir}/src/main/resources/i18n</directory>
+            <outputDirectory>/i18n</outputDirectory>
+            <includes>
+                <include>*.properties</include>
+            </includes>
+        </fileSet>
     </fileSets>
 
 </assembly>

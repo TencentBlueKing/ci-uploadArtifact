@@ -46,7 +46,7 @@ class ArchiveApi : BaseApi() {
 
     fun uploadFile(file: File, fullPath: String, atomParam: UploadArtifactParam) {
         if (tokenRequest) {
-            logger.info("fileGateway: $fileGateway")
+            logger.debug("fileGateway: $fileGateway")
             token = createToken(atomParam)
             createProjectOrRepoIfNotExist(atomParam.pipelineStartUserId, atomParam.projectName, atomParam.repoName)
             uploadFileByToken(file, fullPath, atomParam)
@@ -286,7 +286,7 @@ class ArchiveApi : BaseApi() {
                     }
                 map
             } catch (e: Exception) {
-                logger.error("fail to deserialize input: $strValue")
+                logger.debug("fail to deserialize input: $strValue")
                 mutableMapOf()
             }
         }
@@ -329,7 +329,7 @@ class ArchiveApi : BaseApi() {
                 }
             }
         } catch (e: Exception) {
-            logger.warn("get metadata from file(${file.absolutePath}) failed", e)
+            logger.debug("get metadata from file(${file.absolutePath}) failed", e)
             return mapOf()
         }
     }
