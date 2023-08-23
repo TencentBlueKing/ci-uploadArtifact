@@ -1,6 +1,7 @@
 package com.tencent.bk.devops.atom.task
 
 import com.tencent.bk.devops.atom.AtomContext
+import com.tencent.bk.devops.atom.api.SdkEnv
 import com.tencent.bk.devops.atom.exception.AtomException
 import com.tencent.bk.devops.atom.pojo.StringData
 import com.tencent.bk.devops.atom.spi.AtomService
@@ -22,8 +23,6 @@ import java.nio.file.FileSystems
 class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
     override fun execute(atomContext: AtomContext<UploadArtifactParam>) {
         val atomParam = atomContext.param
-        val domain =
-            atomParam.bkSensitiveConfInfo["BK_REPO_DOMAIN"] ?: throw AtomException("please set param BK_REPO_DOMAIN")
         val projectId = atomParam.projectName
         val filePath = atomParam.filePath
         val repoName = atomParam.repoName
@@ -89,7 +88,7 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
             logger.info("$it uploaded")
             if (downloadFileMap.containsKey(it)) {
                 atomContext.result.data[downloadFileMap[it]] =
-                    StringData(generateDownloadUrl(domain, projectId, repoName, fullPath))
+                    StringData(generateDownloadUrl(projectId, repoName, fullPath))
                 logger.info("add file[${it}] download url to output param[${downloadFileMap[it]}]")
             }
         }
@@ -208,9 +207,16 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
     }
 
     private fun generateDownloadUrl(
-        domain: String, projectId: String, repoName: String, fullDestPath: String
+        projectId: String, repoName: String, fullDestPath: String
     ): String {
-        return "$domain/web/generic/$projectId/$repoName/$fullDestPath?download=true"
+        val fileGateway = SdkEnv.getFileGateway()
+        return if (fileGateway.contains("bkrepo")) {
+            "$fileGateway/web/generic/$projectId/$repoName/$fullDestPath?download=true"
+        } else if (fileGateway.contains("devops")) {
+            "$fileGateway/bkrepo/api/user/generic/$projectId/$repoName/$fullDestPath?download=true"
+        } else {
+            "/bkrepo/api/user/generic/$projectId/$repoName/$fullDestPath?download=true"
+        }
     }
 
     companion object {
