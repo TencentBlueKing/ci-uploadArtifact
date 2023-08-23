@@ -11,9 +11,9 @@
     "filePath": {
       "label": "待归档的文件",
       "default": "",
-      "placeholder": "需要归档的文件列表，支持Glob通配符(目录名中只能包含*或者**通配符，待匹配文件名支持所有Glob通配符)，\r\n不支持归档目录",
+      "placeholder": "请输入文件路径，支持Glob通配符(目录名中只能包含*或者**通配符，待匹配文件名支持所有Glob通配符)",
       "type": "vuex-input",
-      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，\r\n不支持归档目录",
+      "desc": "归档当前工作空间相对路径或绝对路径目录下的构建产物，可以用通配符匹配，支持多个路径(以英文 , 隔开)，\r\n不支持归档目录，上传文件个数不超过500个",
       "required": true,
       "disabled": false,
       "hidden": false,
@@ -100,17 +100,17 @@
         "rowAttributes": [
           {
             "id": "key",
-            "label": "元数据属性键",
+            "label": "键",
             "type": "input",
-            "placeholder" : "元数据属性键",
-            "desc": "元数据属性键"
+            "placeholder" : "键",
+            "desc": "键"
           },
           {
             "id": "value",
-            "label": "元数据属性值",
+            "label": "值",
             "type": "input",
-            "placeholder" : "元数据属性值",
-            "desc": "元数据属性值"
+            "placeholder" : "值",
+            "desc": "值"
           }
         ],
         "columnNumber": 2
@@ -145,7 +145,7 @@
       "frontendType": "NORMAL"
     },
     "versionInfo": {
-      "publisher": "Blueking",
+      "publisher": "BlueKing",
       "releaseType": "NEW",
       "version": "1.0.0",
       "versionContent": "init"
