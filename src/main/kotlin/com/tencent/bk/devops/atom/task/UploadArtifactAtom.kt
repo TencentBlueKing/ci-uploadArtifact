@@ -8,7 +8,10 @@ import com.tencent.bk.devops.atom.spi.AtomService
 import com.tencent.bk.devops.atom.spi.TaskAtom
 import com.tencent.bk.devops.atom.task.api.ArchiveApi
 import com.tencent.bk.devops.atom.task.constant.PARENT_BUILD_ID
+import com.tencent.bk.devops.atom.task.constant.PARENT_BUILD_NUM
 import com.tencent.bk.devops.atom.task.constant.PARENT_PIPELINE_ID
+import com.tencent.bk.devops.atom.task.constant.PARENT_PIPELINE_NAME
+import com.tencent.bk.devops.atom.task.constant.PARENT_PROJECT_ID
 import com.tencent.bk.devops.atom.task.constant.REPO_CUSTOM
 import com.tencent.bk.devops.atom.task.constant.REPO_PIPELINE
 import com.tencent.bk.devops.atom.task.constant.UPLOAD_MAX_FILE_COUNT
@@ -31,11 +34,21 @@ class UploadArtifactAtom : TaskAtom<UploadArtifactParam> {
         val isParentPipeline = atomParam.isParentPipeline
         val downloadFiles = getDownloadFiles(atomParam.downloadFiles)
 
-        if (repoName == REPO_PIPELINE && isParentPipeline) {
+        if (isParentPipeline) {
+            val parentProjectId = System.getenv(PARENT_PROJECT_ID)
             val parentPipelineId = System.getenv(PARENT_PIPELINE_ID)
+            val parentPipelineName = System.getenv(PARENT_PIPELINE_NAME)
             val parentBuildId = System.getenv(PARENT_BUILD_ID)
-            parentPipelineId?.let { atomParam.pipelineId = parentPipelineId }
-            parentBuildId?.let { atomParam.pipelineBuildId = parentBuildId }
+            val parentBuildNo = System.getenv(PARENT_BUILD_NUM)
+            if (parentProjectId != null && parentPipelineId != null && parentPipelineName != null && parentBuildId != null && parentBuildNo != null) {
+                atomParam.projectName = parentProjectId
+                atomParam.pipelineId = parentPipelineId
+                atomParam.pipelineBuildId = parentBuildId
+                atomParam.pipelineName = parentPipelineName
+                atomParam.pipelineBuildNum = parentBuildNo
+            } else {
+                logger.warn("not found parent pipeline, upload artifact to this pipeline[${atomParam.pipelineId}]")
+            }
         }
 
         val filesToUpload = mutableSetOf<String>()

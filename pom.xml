@@ -94,6 +94,7 @@
                             <descriptors>
                                 <descriptor>package/assemblies/assembly.xml</descriptor>
                             </descriptors>
+                            <appendAssemblyId>false</appendAssemblyId>
                         </configuration>
                     </execution>
                     <execution>
@@ -107,6 +108,7 @@
                             <descriptors>
                                 <descriptor>package/assemblies/assembly_en.xml</descriptor>
                             </descriptors>
+                            <appendAssemblyId>false</appendAssemblyId>
                         </configuration>
                     </execution>
                 </executions>
